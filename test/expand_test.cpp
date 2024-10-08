@@ -12,6 +12,8 @@ using namespace std::chrono;
 using namespace std;
 using namespace seal;
 
+void *__dso_handle = (void *) &__dso_handle;
+
 // For this test, we need the parameters to be such that the number of
 // compressed ciphertexts needed is 1.
 int main(int argc, char *argv[]) {

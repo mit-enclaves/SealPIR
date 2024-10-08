@@ -12,6 +12,8 @@ using namespace std::chrono;
 using namespace std;
 using namespace seal;
 
+void *__dso_handle = (void *) &__dso_handle;
+
 int replace_test(uint64_t num_items, uint64_t item_size, uint32_t degree,
                  uint32_t lt, uint32_t dim);
 

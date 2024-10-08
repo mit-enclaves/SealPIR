@@ -13,6 +13,8 @@ using namespace std::chrono;
 using namespace std;
 using namespace seal;
 
+void *__dso_handle = (void *) &__dso_handle;
+
 int main(int argc, char *argv[]) {
 
   const uint32_t logt = 16;

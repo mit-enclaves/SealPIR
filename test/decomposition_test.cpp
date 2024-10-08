@@ -12,6 +12,8 @@ using namespace std::chrono;
 using namespace std;
 using namespace seal;
 
+void *__dso_handle = (void *) &__dso_handle;
+
 int main(int argc, char *argv[]) {
 
   uint64_t number_of_items = 2048;
