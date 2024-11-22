@@ -1,4 +1,4 @@
-find_package(SEAL 4.1.1 REQUIRED)
+find_package(SEAL 4.1.2 REQUIRED)
 
 get_filename_component(CUR_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 

@@ -20,6 +20,40 @@ void *__dso_handle = (void *) &__dso_handle;
 
 unsigned int aux;
 
+class Timer {
+public:
+    Timer() {
+        print_timestamp("Program started at: ");
+    }
+    
+    ~Timer() {
+        print_timestamp("Program ended at: ");
+    }
+
+private:
+    static void print_timestamp(const char* prefix) {
+        using namespace std::chrono;
+        auto now = high_resolution_clock::now();
+        auto duration = now.time_since_epoch();
+        
+        // Get seconds
+        auto secs = duration_cast<std::chrono::seconds>(duration);
+        
+        // Get just the nanoseconds part by taking remainder after seconds
+        auto nsecs = duration_cast<std::chrono::nanoseconds>(duration - secs).count() % 1000000000;
+        
+        // Print with exact same format as date +%s.%N
+        std::cout << prefix 
+                 << secs.count() << "."
+                 << std::setfill('0') << std::setw(9) << nsecs
+                 << std::endl;
+    }
+};
+
+// Global timer instance
+static Timer global_timer;
+
+
 #include <cmath>
 
 extern "C" {
