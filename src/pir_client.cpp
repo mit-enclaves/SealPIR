@@ -38,9 +38,9 @@ int PIRClient::generate_serialized_query(uint64_t desiredIndex,
   for (uint32_t i = 0; i < indices_.size(); i++) {
     uint32_t num_ptxts = ceil((pir_params_.nvec[i] + 0.0) / N);
     // initialize result.
-    cout << "Client: index " << i + 1 << "/ " << indices_.size() << " = "
-         << indices_[i] << endl;
-    cout << "Client: number of ctxts needed for query = " << num_ptxts << endl;
+    // cout << "Client: index " << i + 1 << "/ " << indices_.size() << " = "
+    //      << indices_[i] << endl;
+    // cout << "Client: number of ctxts needed for query = " << num_ptxts << endl;
 
     for (uint32_t j = 0; j < num_ptxts; j++) {
       pt.set_zero();
@@ -53,7 +53,7 @@ int PIRClient::generate_serialized_query(uint64_t desiredIndex,
         }
         uint64_t log_total = ceil(log2(total));
 
-        cout << "Client: Inverting " << pow(2, log_total) << endl;
+        // cout << "Client: Inverting " << pow(2, log_total) << endl;
         pt[real_index] =
             invert_mod(pow(2, log_total), enc_params_.plain_modulus());
       }
@@ -80,9 +80,9 @@ PirQuery PIRClient::generate_query(uint64_t desiredIndex) {
   for (uint32_t i = 0; i < indices_.size(); i++) {
     uint32_t num_ptxts = ceil((pir_params_.nvec[i] + 0.0) / N);
     // initialize result.
-    cout << "Client: index " << i + 1 << "/ " << indices_.size() << " = "
-         << indices_[i] << endl;
-    cout << "Client: number of ctxts needed for query = " << num_ptxts << endl;
+    // cout << "Client: index " << i + 1 << "/ " << indices_.size() << " = "
+    //      << indices_[i] << endl;
+    // cout << "Client: number of ctxts needed for query = " << num_ptxts << endl;
 
     for (uint32_t j = 0; j < num_ptxts; j++) {
       pt.set_zero();
@@ -95,7 +95,7 @@ PirQuery PIRClient::generate_query(uint64_t desiredIndex) {
         }
         uint64_t log_total = ceil(log2(total));
 
-        cout << "Client: Inverting " << pow(2, log_total) << endl;
+        // cout << "Client: Inverting " << pow(2, log_total) << endl;
         pt[real_index] =
             invert_mod(pow(2, log_total), enc_params_.plain_modulus());
       }
@@ -190,8 +190,8 @@ Plaintext PIRClient::decode_reply(PirReply &reply) {
   uint64_t t = enc_params_.plain_modulus().value();
 
   for (uint32_t i = 0; i < recursion_level; i++) {
-    cout << "Client: " << i + 1 << "/ " << recursion_level
-         << "-th decryption layer started." << endl;
+    // cout << "Client: " << i + 1 << "/ " << recursion_level
+    //      << "-th decryption layer started." << endl;
     vector<Ciphertext> newtemp;
     vector<Plaintext> tempplain;
 
@@ -199,8 +199,8 @@ Plaintext PIRClient::decode_reply(PirReply &reply) {
       Plaintext ptxt;
       decryptor_->decrypt(temp[j], ptxt);
 #ifdef DEBUG
-      cout << "Client: reply noise budget = "
-           << decryptor_->invariant_noise_budget(temp[j]) << endl;
+      // cout << "Client: reply noise budget = "
+      //      << decryptor_->invariant_noise_budget(temp[j]) << endl;
 #endif
 
       // cout << "decoded (and scaled) plaintext = " << ptxt.to_string() <<
@@ -208,8 +208,8 @@ Plaintext PIRClient::decode_reply(PirReply &reply) {
       tempplain.push_back(ptxt);
 
 #ifdef DEBUG
-      cout << "recursion level : " << i << " noise budget :  ";
-      cout << decryptor_->invariant_noise_budget(temp[j]) << endl;
+      // cout << "recursion level : " << i << " noise budget :  ";
+      // cout << decryptor_->invariant_noise_budget(temp[j]) << endl;
 #endif
 
       if ((j + 1) % (exp_ratio * ciphertext_size) == 0 && j > 0) {
@@ -221,8 +221,8 @@ Plaintext PIRClient::decode_reply(PirReply &reply) {
         // cout << "Client: const term of ciphertext = " << combined[0] << endl;
       }
     }
-    cout << "Client: done." << endl;
-    cout << endl;
+    // cout << "Client: done." << endl;
+    // cout << endl;
     if (i == recursion_level - 1) {
       assert(temp.size() == 1);
       return tempplain[0];
