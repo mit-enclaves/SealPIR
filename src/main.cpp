@@ -9,9 +9,9 @@
 #include <seal/seal.h>
 #include <iostream>
 #include <iomanip>
-#include <openssl/sha.h>
 
 #include <x86intrin.h>
+#include "SHA256.h"
 
 using namespace std::chrono;
 using namespace std;
@@ -224,12 +224,9 @@ int main(int argc, char *argv[]) {
   // Get the serialized data as a string
   string serialized_reply = server_stream.str();
   
-  // Perform SHA-256 hashing
-  unsigned char hash[SHA256_DIGEST_LENGTH];
-  SHA256_CTX sha256;
-  SHA256_Init(&sha256);
-  SHA256_Update(&sha256, serialized_reply.c_str(), serialized_reply.size());
-  SHA256_Final(hash, &sha256);
+  // Perform SHA-256 hashing using standalone library
+  SHA256 sha256;
+  sha256.update(serialized_reply);
   
   auto cycle_hash_e = __rdtscp(&aux);
   auto cycle_hash_us = (cycle_hash_e - cycle_hash_s);
