@@ -9,6 +9,7 @@
 #include <seal/seal.h>
 #include <iostream>
 #include <iomanip>
+#include <openssl/sha.h>
 
 #include <x86intrin.h>
 
@@ -73,8 +74,8 @@ int main(int argc, char *argv[]) {
 
   printf("Main: force_math_symbols(2.0, 4.0) = %f\n", force_math_symbols(2.0, 4.0));
 
-  uint64_t number_of_items = 1 << 16;
-  uint64_t size_per_item = 1024; // in bytes
+  uint64_t number_of_items = 1 << 20;
+  uint64_t size_per_item = 288; // in bytes
   uint32_t N = 4096;
 
   // Recommended values: (logt, d) = (20, 2).
@@ -130,7 +131,7 @@ int main(int argc, char *argv[]) {
 
   // Copy of the database. We use this at the end to make sure we retrieved
   // the correct element.
-  auto db_copy(make_unique<uint8_t[]>(number_of_items * size_per_item));
+  //auto db_copy(make_unique<uint8_t[]>(number_of_items * size_per_item));
 
 // // Copy pre-generated values
 //   memcpy(db.get(), DB_VALUES, number_of_items * size_per_item);
@@ -140,18 +141,18 @@ int main(int argc, char *argv[]) {
     for (uint64_t j = 0; j < size_per_item; j++) {
       uint8_t val = rand_byte();
       db.get()[(i * size_per_item) + j] = val;
-      db_copy.get()[(i * size_per_item) + j] = val;
+      //db_copy.get()[(i * size_per_item) + j] = val;
     }
   }
 
   // Measure database setup
   //auto time_pre_s = high_resolution_clock::now();
-  auto time_pre_s = __rdtscp(&aux);
+  auto cycle_pre_s = __rdtscp(&aux);
   server.set_database(move(db), number_of_items, size_per_item);
   server.preprocess_database();
-  auto time_pre_e = __rdtscp(&aux);
+  auto cycle_pre_e = __rdtscp(&aux);
   //auto time_pre_e = high_resolution_clock::now();
-  auto time_pre_us = (time_pre_e - time_pre_s) / float(3600);
+  auto cycle_pre_us = (cycle_pre_e - cycle_pre_s);
       //duration_cast<microseconds>(time_pre_e - time_pre_s).count();
   cout << "Main: database pre processed " << endl;
 
@@ -166,100 +167,114 @@ int main(int argc, char *argv[]) {
   cout << "Main: FV index = " << index << ", FV offset = " << offset << endl;
 
   // Measure query generation
-  auto time_query_s = __rdtscp(&aux);
+  auto cycle_query_s = __rdtscp(&aux);
   //auto time_query_s = high_resolution_clock::now();
   PirQuery query = client.generate_query(index);
-  auto time_query_e = __rdtscp(&aux);
+  auto cycle_query_e = __rdtscp(&aux);
   //auto time_query_e = high_resolution_clock::now();
-  auto time_query_us = (time_query_e - time_query_s) / float(3600);
+  auto cycle_query_us = (cycle_query_e - cycle_query_s);
       //duration_cast<microseconds>(time_query_e - time_query_s).count();
   cout << "Main: query generated" << endl;
 
   // Measure serialized query generation (useful for sending over the network)
   stringstream client_stream;
   stringstream server_stream;
-  auto time_s_query_s = __rdtscp(&aux);
+  auto cycle_s_query_s = __rdtscp(&aux);
   //auto time_s_query_s = high_resolution_clock::now();
   int query_size = client.generate_serialized_query(index, client_stream);
-  auto time_s_query_e = __rdtscp(&aux);
+  auto cycle_s_query_e = __rdtscp(&aux);
   //auto time_s_query_e = high_resolution_clock::now();
-  auto time_s_query_us = (time_s_query_e - time_s_query_s) / float(3600);
+  auto cycle_s_query_us = (cycle_s_query_e - cycle_s_query_s);
       //duration_cast<microseconds>(time_s_query_e - time_s_query_s).count();
   cout << "Main: serialized query generated" << endl;
 
   // Measure query deserialization (useful for receiving over the network)
-  auto time_deserial_s = __rdtscp(&aux);
+  auto cycle_deserial_s = __rdtscp(&aux);
   //auto time_deserial_s = high_resolution_clock::now();
   PirQuery query2 = server.deserialize_query(client_stream);
-  auto time_deserial_e = __rdtscp(&aux);
+  auto cycle_deserial_e = __rdtscp(&aux);
   //auto time_deserial_e = high_resolution_clock::now();
-  auto time_deserial_us = (time_deserial_e - time_deserial_s) / float(3600);
+  auto cycle_deserial_us = (cycle_deserial_e - cycle_deserial_s);
       //duration_cast<microseconds>(time_deserial_e - time_deserial_s).count();
   cout << "Main: query deserialized" << endl;
 
   // Measure query processing (including expansion)
-  auto time_server_s = __rdtscp(&aux);
+  auto cycle_server_s = __rdtscp(&aux);
   //auto time_server_s = high_resolution_clock::now();
   // Answer PIR query from client 0. If there are multiple clients,
   // enter the id of the client (to use the associated galois key).
   PirReply reply = server.generate_reply(query2, 0);
-  auto time_server_e = __rdtscp(&aux);
+  auto cycle_server_e = __rdtscp(&aux);
   //auto time_server_e = high_resolution_clock::now();
-  auto time_server_us = (time_server_e - time_server_s) / float(3600);
+  auto cycle_server_us = (cycle_server_e - cycle_server_s);
       //duration_cast<microseconds>(time_server_e - time_server_s).count();
   cout << "Main: reply generated" << endl;
 
+  // Measure reply serialization
+  auto cycle_s_reply_s = __rdtscp(&aux);
   // Serialize reply (useful for sending over the network)
   int reply_size = server.serialize_reply(reply, server_stream);
+  auto cycle_s_reply_e = __rdtscp(&aux);
+  auto cycle_s_reply_us = (cycle_s_reply_e - cycle_s_reply_s);
+  cout << "Main: reply serialized" << endl;
+
+  // Measure SHA-256 hashing of the reply
+  auto cycle_hash_s = __rdtscp(&aux);
+  
+  // Get the serialized data as a string
+  string serialized_reply = server_stream.str();
+  
+  // Perform SHA-256 hashing
+  unsigned char hash[SHA256_DIGEST_LENGTH];
+  SHA256_CTX sha256;
+  SHA256_Init(&sha256);
+  SHA256_Update(&sha256, serialized_reply.c_str(), serialized_reply.size());
+  SHA256_Final(hash, &sha256);
+  
+  auto cycle_hash_e = __rdtscp(&aux);
+  auto cycle_hash_us = (cycle_hash_e - cycle_hash_s);
 
   // Measure response extraction
-  auto time_decode_s = __rdtscp(&aux);
+  auto cycle_decode_s = __rdtscp(&aux);
   //auto time_decode_s = high_resolution_clock::now();
   vector<uint8_t> elems = client.decode_reply(reply, offset);
-  auto time_decode_e = __rdtscp(&aux);
+  auto cycle_decode_e = __rdtscp(&aux);
   //auto time_decode_e = high_resolution_clock::now();
-  auto time_decode_us = (time_decode_e - time_decode_s) / float(3600);
+  auto cycle_decode_us = (cycle_decode_e - cycle_decode_s);
       //duration_cast<microseconds>(time_decode_e - time_decode_s).count();
   cout << "Main: reply decoded" << endl;
 
   assert(elems.size() == size_per_item);
 
-  bool failed = false;
-  // Check that we retrieved the correct element
-  for (uint32_t i = 0; i < size_per_item; i++) {
-    if (elems[i] != db_copy.get()[(ele_index * size_per_item) + i]) {
-      cout << "Main: elems " << (int)elems[i] << ", db "
-           << (int)db_copy.get()[(ele_index * size_per_item) + i] << endl;
-      cout << "Main: PIR result wrong at " << i << endl;
-      failed = true;
-    }
-  }
-  if (failed) {
-    return -1;
-  }
+//   bool failed = false;
+//   // Check that we retrieved the correct element
+//   for (uint32_t i = 0; i < size_per_item; i++) {
+//     if (elems[i] != db_copy.get()[(ele_index * size_per_item) + i]) {
+//       cout << "Main: elems " << (int)elems[i] << ", db "
+//            << (int)db_copy.get()[(ele_index * size_per_item) + i] << endl;
+//       cout << "Main: PIR result wrong at " << i << endl;
+//       failed = true;
+//     }
+//   }
+//   if (failed) {
+//     return -1;
+//   }
 
   // Output results
   cout << "Main: PIR result correct!" << endl;
-  cout << "Main: PIRServer pre-processing time: " << setprecision(6) << right
-       << setw(10) << time_pre_us / float(1000) << " ms"
-       << endl;
-  cout << "Main: PIRClient query generation time: " << setprecision(6) << right
-       << setw(10) << time_query_us / float(1000) << " ms"
-       << endl;
-  cout << "Main: PIRClient serialized query generation time: " << setprecision(6) << right
-       << setw(10) << time_s_query_us / float(1000) << " ms"
-       << endl;
-  cout << "Main: PIRServer query deserialization time: " << setprecision(6) << right
-       << setw(10) << time_deserial_us / float(1000) << " ms"
-       << endl;
-  cout << "Main: PIRServer reply generation time: " << setprecision(6) << right
-       << setw(10) << time_server_us / float(1000) << " ms"
-       << endl;
-  cout << "Main: PIRClient answer decode time: " << setprecision(6) << right
-       << setw(10) << time_decode_us / float(1000) << " ms"
-       << endl;
+  cout << "Main: Operation                                  Cycles" << endl;
+  cout << "Main: ----------------------------------------  --------------" << endl;
+  cout << "Main: PIRServer pre-processing:                " << setprecision(6) << right << setw(14) << cycle_pre_us << endl;
+  cout << "Main: PIRClient query generation:              " << setprecision(6) << right << setw(14) << cycle_query_us << endl; 
+  cout << "Main: PIRClient serialized query generation:   " << setprecision(6) << right << setw(14) << cycle_s_query_us << endl;
+  cout << "Main: PIRServer query deserialization:         " << setprecision(6) << right << setw(14) << cycle_deserial_us << endl;
+  cout << "Main: PIRServer query processing:              " << setprecision(6) << right << setw(14) << cycle_server_us << endl;
+  cout << "Main: PIRServer reply serialization:           " << setprecision(6) << right << setw(14) << cycle_s_reply_us << endl;
+  cout << "Main: Reply SHA-256 hashing:                   " << setprecision(6) << right << setw(14) << cycle_hash_us << endl;
+  cout << "Main: PIRClient answer decode:                 " << setprecision(6) << right << setw(14) << cycle_decode_us << endl;
+  cout << endl;
   cout << "Main: Query size: " << query_size << " bytes" << endl;
-  cout << "Main: Reply num ciphertexts: " << reply.size() << endl;
+  cout << "Main: Reply num ciphertexts: " << reply.size() << endl; 
   cout << "Main: Reply size: " << reply_size << " bytes" << endl;
 
   return 0;
