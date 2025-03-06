@@ -33,20 +33,9 @@ public:
 
 private:
     static void print_timestamp(const char* prefix) {
-        using namespace std::chrono;
-        auto now = high_resolution_clock::now();
-        auto duration = now.time_since_epoch();
-        
-        // Get seconds
-        auto secs = duration_cast<std::chrono::seconds>(duration);
-        
-        // Get just the nanoseconds part by taking remainder after seconds
-        auto nsecs = duration_cast<std::chrono::nanoseconds>(duration - secs).count() % 1000000000;
-        
-        // Print with exact same format as date +%s.%N
+        auto cycles = __rdtscp(&aux);
         std::cout << prefix 
-                 << secs.count() << "."
-                 << std::setfill('0') << std::setw(9) << nsecs
+                 << cycles
                  << std::endl;
     }
 };
@@ -75,7 +64,7 @@ int main(int argc, char *argv[]) {
   printf("Main: force_math_symbols(2.0, 4.0) = %f\n", force_math_symbols(2.0, 4.0));
 
   uint64_t number_of_items = 1 << 20;
-  uint64_t size_per_item = 288; // in bytes
+  uint64_t size_per_item = 128; // in bytes
   uint32_t N = 4096;
 
   // Recommended values: (logt, d) = (20, 2).
