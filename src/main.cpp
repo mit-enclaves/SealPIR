@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   printf("Main: force_math_symbols(2.0, 4.0) = %f\n", force_math_symbols(2.0, 4.0));
 
   uint64_t number_of_items = 1 << 20;
-  uint64_t size_per_item = 288; // in bytes
+  uint64_t size_per_item = 128; // in bytes
   uint32_t N = 4096;
 
   // Recommended values: (logt, d) = (20, 2).
@@ -129,29 +129,31 @@ int main(int argc, char *argv[]) {
   // Create test database
   auto db(make_unique<uint8_t[]>(number_of_items * size_per_item));
 
-  // Copy of the database. We use this at the end to make sure we retrieved
-  // the correct element.
-  //auto db_copy(make_unique<uint8_t[]>(number_of_items * size_per_item));
-
-// // Copy pre-generated values
-//   memcpy(db.get(), DB_VALUES, number_of_items * size_per_item);
-//   memcpy(db_copy.get(), DB_VALUES, number_of_items * size_per_item);
-
+  // Fill database with random data
   for (uint64_t i = 0; i < number_of_items; i++) {
     for (uint64_t j = 0; j < size_per_item; j++) {
       uint8_t val = rand_byte();
       db.get()[(i * size_per_item) + j] = val;
-      //db_copy.get()[(i * size_per_item) + j] = val;
     }
   }
 
+  // Measure database hashing time
+  auto cycle_db_hash_s = __rdtscp(&aux);
+  
+  // Hash the entire database
+  SHA256 sha256db;
+  sha256db.update(db.get(), number_of_items * size_per_item);
+  auto hashdb = sha256db.digest();
+  
+  auto cycle_db_hash_e = __rdtscp(&aux);
+  auto cycle_db_hash = (cycle_db_hash_e - cycle_db_hash_s);
+
+
   // Measure database setup
-  //auto time_pre_s = high_resolution_clock::now();
   auto cycle_pre_s = __rdtscp(&aux);
   server.set_database(move(db), number_of_items, size_per_item);
   server.preprocess_database();
   auto cycle_pre_e = __rdtscp(&aux);
-  //auto time_pre_e = high_resolution_clock::now();
   auto cycle_pre_us = (cycle_pre_e - cycle_pre_s);
       //duration_cast<microseconds>(time_pre_e - time_pre_s).count();
   cout << "Main: database pre processed " << endl;
@@ -188,6 +190,7 @@ int main(int argc, char *argv[]) {
       //duration_cast<microseconds>(time_s_query_e - time_s_query_s).count();
   cout << "Main: serialized query generated" << endl;
 
+
   // Measure query deserialization (useful for receiving over the network)
   auto cycle_deserial_s = __rdtscp(&aux);
   //auto time_deserial_s = high_resolution_clock::now();
@@ -222,10 +225,12 @@ int main(int argc, char *argv[]) {
   auto cycle_hash_s = __rdtscp(&aux);
   
   // Get the serialized data as a string
+  string serialized_request = client_stream.str();
   string serialized_reply = server_stream.str();
   
   // Perform SHA-256 hashing using standalone library
   SHA256 sha256;
+  sha256.update(serialized_request);
   sha256.update(serialized_reply);
   
   auto cycle_hash_e = __rdtscp(&aux);
@@ -261,13 +266,15 @@ int main(int argc, char *argv[]) {
   cout << "Main: PIR result correct!" << endl;
   cout << "Main: Operation                                  Cycles" << endl;
   cout << "Main: ----------------------------------------  --------------" << endl;
+  cout << "Main: Database size:                           " << setprecision(6) << right << setw(14) << (number_of_items * size_per_item) << " bytes" << endl;
+  cout << "Main: Database hash time:                      " << setprecision(6) << right << setw(14) << cycle_db_hash << " cycles" << endl;
   cout << "Main: PIRServer pre-processing:                " << setprecision(6) << right << setw(14) << cycle_pre_us << endl;
   cout << "Main: PIRClient query generation:              " << setprecision(6) << right << setw(14) << cycle_query_us << endl; 
   cout << "Main: PIRClient serialized query generation:   " << setprecision(6) << right << setw(14) << cycle_s_query_us << endl;
   cout << "Main: PIRServer query deserialization:         " << setprecision(6) << right << setw(14) << cycle_deserial_us << endl;
   cout << "Main: PIRServer query processing:              " << setprecision(6) << right << setw(14) << cycle_server_us << endl;
   cout << "Main: PIRServer reply serialization:           " << setprecision(6) << right << setw(14) << cycle_s_reply_us << endl;
-  cout << "Main: Reply SHA-256 hashing:                   " << setprecision(6) << right << setw(14) << cycle_hash_us << endl;
+  cout << "Main: Request and Reply SHA-256 hashing:       " << setprecision(6) << right << setw(14) << cycle_hash_us << endl;
   cout << "Main: PIRClient answer decode:                 " << setprecision(6) << right << setw(14) << cycle_decode_us << endl;
   cout << endl;
   cout << "Main: Query size: " << query_size << " bytes" << endl;
